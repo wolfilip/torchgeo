@@ -4,11 +4,12 @@
 """Pretrained Distillation for EO (DEO) model implementation."""
 
 from functools import partial
-from typing import Any
+from typing import Any, Literal
 
 import torch
 import torch.nn as nn
 from torchvision import models as torchvision_models
+from torchvision import transforms
 from torchvision.models._api import Weights, WeightsEnum
 from torchvision.ops.misc import Permute
 
@@ -20,45 +21,80 @@ class DEO(nn.Module):
 
     * https://arxiv.org/abs/2602.19863
 
-    .. versionadded:: 0.9
+    .. versionadded:: 0.10
     """
 
-    def __init__(self, model: str = 'swin_b') -> None:
+    def __init__(
+        self, model: Literal['swin_b'] = 'swin_b', in_channels: Literal[3, 10] = 10
+    ) -> None:
         """Initialise DEO model.
 
         Args:
             model: backbone type (for now swin_b).
+            in_channels: Number of input channels.
         """
         super().__init__()
 
         # initialize the backbone
         self.feat_extr = torchvision_models.__dict__[model]()
         del self.feat_extr.features[0]
-        # Conv layers for Swin
-        norm_layer_ms = partial(nn.LayerNorm, eps=1e-5)
-        norm_layer_rgb = partial(nn.LayerNorm, eps=1e-5)
-        self.feat_extr.conv_ms = nn.Sequential(
-            nn.Conv2d(
-                10,
-                self.feat_extr.features[0][0].norm1.normalized_shape[0],
-                kernel_size=(4, 4),
-                stride=(4, 4),
-            ),
-            Permute([0, 2, 3, 1]),
-            norm_layer_ms(self.feat_extr.features[0][0].norm1.normalized_shape[0]),
-        )
-        self.feat_extr.conv_rgb = nn.Sequential(
-            nn.Conv2d(
-                3,
-                self.feat_extr.features[0][0].norm1.normalized_shape[0],
-                kernel_size=(4, 4),
-                stride=(4, 4),
-            ),
-            Permute([0, 2, 3, 1]),
-            norm_layer_rgb(self.feat_extr.features[0][0].norm1.normalized_shape[0]),
-        )
 
-    def forward_swin(self, x: torch.Tensor) -> list[torch.Tensor]:
+        # Conv layers for Swin
+        if in_channels == 10:
+            norm_layer_ms = partial(nn.LayerNorm, eps=1e-5)
+            self.feat_extr.patch_embed = nn.Sequential(
+                nn.Conv2d(
+                    10,
+                    self.feat_extr.features[0][0].norm1.normalized_shape[0],
+                    kernel_size=(4, 4),
+                    stride=(4, 4),
+                ),
+                Permute([0, 2, 3, 1]),
+                norm_layer_ms(self.feat_extr.features[0][0].norm1.normalized_shape[0]),
+            )
+            self.normalize = transforms.Normalize(
+                (
+                    1184.382,
+                    1120.771,
+                    1136.260,
+                    1263.73947144,
+                    1645.40315151,
+                    1846.87040806,
+                    1762.59530783,
+                    1972.62420416,
+                    1732.16362238,
+                    1247.91870117,
+                ),
+                (
+                    650.2842772,
+                    712.12507725,
+                    965.23119807,
+                    948.9819932,
+                    1108.06650639,
+                    1258.36394548,
+                    1233.1492281,
+                    1364.38688993,
+                    1310.36996126,
+                    1087.6020813,
+                ),
+            )
+        elif in_channels == 3:
+            norm_layer_rgb = partial(nn.LayerNorm, eps=1e-5)
+            self.feat_extr.patch_embed = nn.Sequential(
+                nn.Conv2d(
+                    3,
+                    self.feat_extr.features[0][0].norm1.normalized_shape[0],
+                    kernel_size=(4, 4),
+                    stride=(4, 4),
+                ),
+                Permute([0, 2, 3, 1]),
+                norm_layer_rgb(self.feat_extr.features[0][0].norm1.normalized_shape[0]),
+            )
+            self.normalize = transforms.Normalize(
+                (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
+            )
+
+    def forward(self, x: torch.Tensor) -> list[torch.Tensor]:
         """Get multi-stage swin features.
 
         Args:
@@ -67,12 +103,11 @@ class DEO(nn.Module):
         Returns:
             list of swin feature tensors list[(b, c, h', w')].
         """
+        x = self.normalize(x)
+
         features = []
         # apply the appropriate conv layer based on the number of input channels
-        if x.shape[1] == 10:
-            x = self.feat_extr.conv_ms(x)
-        else:
-            x = self.feat_extr.conv_rgb(x)
+        x = self.feat_extr.patch_embed(x)
 
         # extract intermediate swin layers
         for i, layer in enumerate(self.feat_extr.features):
@@ -82,28 +117,26 @@ class DEO(nn.Module):
 
         return features
 
-    def forward(self, x: torch.Tensor) -> list[torch.Tensor]:
-        """Forward function for DEO."""
-        features = self.forward_swin(x)
-
-        return features
-
 
 class DEO_Weights(WeightsEnum):
     """DEO base model weights.
 
-    .. versionadded:: 0.9
+    .. versionadded:: 0.10
     """
 
     DEO_SWIN = Weights(
         url='https://huggingface.co/SolaireTheSun/DEO/resolve/main/DEO_swin_b.pth',
         transforms=nn.Identity(),
         meta={
-            'dataset': 'fMoW',
-            'model': 'swin',
+            'dataset': 'fMoW, fMoW-Sentinel',
+            'model': 'Swin_b',
             'publication': 'https://arxiv.org/abs/2602.19863',
             'repo': 'https://github.com/wolfilip/DEO-FM',
-            'ssl_method': 'deo',
+            'license': 'MIT',
+            'ssl_method': 'DEO',
+            'bands': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'],
+            'in_chans': 10,
+            'img_size': 224,
         },
     )
 
