@@ -12,4 +12,4 @@ OlmoEarthV1_Weights.TINY,`link <https://github.com/allenai/olmoearth_pretrain>`_
 OlmoEarthV1_Weights.BASE,`link <https://github.com/allenai/olmoearth_pretrain>`__,`link <https://arxiv.org/abs/2511.13655>`__,OlmoEarth Artifact License,explicit,explicit,explicit,,,,,,,,,,,
 OlmoEarthV1_Weights.LARGE,`link <https://github.com/allenai/olmoearth_pretrain>`__,`link <https://arxiv.org/abs/2511.13655>`__,OlmoEarth Artifact License,explicit,explicit,explicit,,,,,,,,,,,
 Tessera_Weights.TESSERA,`link <https://github.com/ucam-eo/tessera>`__,`link <https://arxiv.org/abs/2506.20380>`__,CC0-1.0,-,explicit,-,,,,,,,,,,,
-DEO_Weights.DEO_SWIN,`link <https://github.com/wolfilip/DEO-FM>`__,`link <https://arxiv.org/abs/2602.19863>`__,CC-BY-4.0,-,-,-,58.43,,,,52.23,97.0,94.41,80.21,,68.56,37.96,72.47
+DEO_Weights.DEO_SWIN,`link <https://github.com/wolfilip/DEO-FM>`__,`link <https://arxiv.org/abs/2602.19863>`__,CC-BY-4.0,-,-,explicit,58.43,,,,52.23,97.0,94.41,80.21,,68.56,37.96,72.47
